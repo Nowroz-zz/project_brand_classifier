@@ -3,7 +3,7 @@ import os
 import tensorflow as tf
 import pathlib
 
-#get current working directory
+# Obtains the current working directory and converts it into string
 cwd = str(os.getcwd())
 
 path_to_origin = "file://localhost" + cwd + "/train_data.tar.xz"
@@ -47,94 +47,89 @@ num_steps = 1000
 batch_size = 10
 image_count = 270
 
-def fetchData():
-    ds = image_label_ds.apply(
-    tf.data.experimental.shuffle_and_repeat(buffer_size=image_count))
-    ds = ds.batch(batch_size)
-    ds = ds.prefetch(buffer_size=AUTOTUNE)
 
-    iter = ds.make_one_shot_iterator()
+ds = image_label_ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=image_count))
+ds = ds.batch(batch_size)
+ds = ds.prefetch(buffer_size=AUTOTUNE)
 
-    image_label_batch = iter.get_next()
+iter = ds.make_one_shot_iterator()
 
-    image_batch = image_label_batch[0]
-    label_batch = image_label_batch[1]
+image_label_batch = iter.get_next()
 
-    return image_batch, label_batch
+image_batch = image_label_batch[0]
+label_batch = image_label_batch[1]
 
-X_train, Y_train = fetchData()
+
+
+image_X = image_batch
+label_Y = label_batch
 
 # Network Parameters
 num_input = 32*32*3 # img shape: 32*32
 num_classes = 3 # Classes: Apple, Lenovo and Samsung
 dropout = 0.25 # Dropout, probability to drop a unit
+is_training = True
 
-# Create the neural network
-# Tensor input become 4-D: [Batch Size, Height, Width, Channel]
-x = tf.reshape(X_train, shape = [-1, 32, 32, 3])
+# The Neural Network
+# Reshapes Tensor input into 4-D: [Batch Size, Height, Width, Channel]
+x = tf.reshape(image_X, shape = [-1, 32, 32, 3])
 
-# Convolution Layer with 32 filters and a kernel size of 5
+# Creates a Convolution Layer with 32 filters and a kernel size of 5
 conv1 = tf.layers.conv2d(x, 32, 5, activation=tf.nn.relu)
 # Max Pooling (down-sampling) with strides of 2 and kernel size of 2
 conv1 = tf.layers.max_pooling2d(conv1, 2, 2)
 
-# Convolution Layer with 64 filters and a kernel size of 3
+# Creates a Convolution Layer with 64 filters and a kernel size of 3
 conv2 = tf.layers.conv2d(conv1, 64, 3, activation=tf.nn.relu)
 # Max Pooling (down-sampling) with strides of 2 and kernel size of 2
 conv2 = tf.layers.max_pooling2d(conv2, 2, 2)
 
-# Flatten the data to a 1-D vector for the fully connected layer
+# Flattens the data to a 1-D vector for the fully connected layer
 fc1 = tf.contrib.layers.flatten(conv2)
 
-# Fully connected layer (in tf contrib folder for now)
+# Creates a Dense Layer with 1024 nodes
 fc1 = tf.layers.dense(fc1, 1024)
 
-# Apply Dropout (if is_training is False, dropout is not applied)
-fc1 = tf.layers.dropout(fc1, rate = dropout, training = True)
+# Applies Dropout (if is_training is False, dropout is not applied)
+fc1 = tf.layers.dropout(fc1, rate = dropout, training = is_training)
 
-# Output layer, class prediction
+# Final Output Layer, class prediction
 out = tf.layers.dense(fc1, num_classes)
 
+# logits
+logits = out
 
-# Define the model function (following TF Estimator Template)
-
-# Build the neural network
-# Because Dropout have different behavior at training and prediction time, we
-# need to create 2 distinct computation graphs that still share the same weights.
-
-logits_train = out
-# Define loss and optimizer
-loss_op = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits = logits_train, labels = tf.cast(Y_train, dtype=tf.int32)))
+# Defines loss
+loss_op = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits = logits, labels = tf.cast(label_Y, dtype=tf.int32)))
     
-
+# Optimizes the model
 optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate)
 
 train_op = optimizer.minimize(loss_op, global_step = tf.train.get_global_step())
 
+# Creates a global variables initializer
 init = tf.global_variables_initializer()
 
+# Creates a saver object
+saver = tf.train.Saver()
 
 with tf.Session() as sess:
-    sess.run(init)
-    #print(sess.run(tf.report_uninitialized_variables()))
-    for step in range(num_steps):
-        sess.run(train_op)
-        print("Loss for step # %d: %f"%(step, sess.run(loss_op)))
 
+    # Check if the .data file exists
+    exists = os.path.isfile('trained_model.data-00000-of-00001')
+    
+    if exists:
+        print("******************************** A trained model already exists ********************************")
 
-##logits_test = conv_net(features, num_classes, dropout, reuse=True,is_training=False)
+    else:
+        # initializes all the variables
+        sess.run(init)
 
-# Predictions
-##pred_classes = tf.argmax(logits_test, axis=1)
-##pred_probas = tf.nn.softmax(logits_test)
+        for step in range(num_steps):
+            _, loss = sess.run([train_op, loss_op])
+            print("..Step # %d-> loss - %f"%(step, loss))
 
-# for i in range(100):
-# _ = sess.run(train_op, feed_dict={x: X_train, y: Y_train})
-
-# accuracy = sess.run(pred_classes, feed_dict={x: X_test, y: Y_test})
-# Evaluate the accuracy of the model
-##acc_op = tf.metrics.accuracy(labels=labels, predictions=pred_classes)
-
-
-
+        #saves the model by the name 'trained_model'
+        saver.save(sess, 'trained_model')
+        print("******************************** Finished training ********************************")
 
