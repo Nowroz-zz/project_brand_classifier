@@ -104,7 +104,7 @@ def commRun():
         else:
             pred_str = "Samsung"
 
-        outVar.set("Output: %s\nAccuracy - %f"%(pred_str, prob))
+        outVar.set("Output: %s\nAccuracy: %f"%(pred_str, prob))
 
 
     else:

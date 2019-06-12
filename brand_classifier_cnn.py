@@ -43,7 +43,7 @@ image_label_ds = tf.data.Dataset.zip((image_ds, label_ds))
 
 # Training Parameters
 learning_rate = 0.001
-num_steps = 1000
+num_steps = 15000
 batch_size = 10
 image_count = 270
 
